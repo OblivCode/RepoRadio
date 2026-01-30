@@ -1,0 +1,11 @@
+streamlit
+daytona-sdk
+openai
+requests
+pydub
+soundfile
+kokoro-onnx
+elevenlabs
+ffmpeg-python
+python-dotenv
+watchdog

@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+.venv/
+env/
+
+# Pyenv
+.python-version
+
+# Daytona & Environment Variables
+.devcontainer/
+.env
+.daytona/
+
+# IDE
+.vscode/
+.idea/
+
+# Mac/Linux Junk
+.DS_Store
