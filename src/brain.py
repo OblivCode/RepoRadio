@@ -84,55 +84,73 @@ def generate_script(repo_content, host1, host2, provider="Local (Ollama)"):
     
     if "Local" in provider:
         url_base = f"http://{host_ip}:11434/api/generate"
-        try:
-            # Truncate content for reliability
-            content_preview = repo_content[:1000] if len(repo_content) > 1000 else repo_content
-            prompt = f"{system_prompt}\n\nRepo Analysis:\n{content_preview}\n\nRespond with ONLY valid JSON."
-            
-            # Using llama3.1:8b for technical explanation
-            model = "llama3.1:8b"
-            payload = {"model": model, "prompt": prompt, "stream": False}
-            
-            log_ollama_request(model, prompt, url_base)
-            
-            start_time = time.time()
-            response = requests.post(url_base, json=payload, timeout=60)
-            response.raise_for_status()
-            
-            data = response.json()
-            response_text = data.get("response", "")
-            
-            duration_ms = (time.time() - start_time) * 1000
-            log_ollama_response(response_text, duration_ms)
-            
-            # Parse the JSON response
-            if not response_text or response_text.strip() == "":
-                brain_logger.warning("Empty response from Ollama")
-                return [{"speaker": "System", "text": "Empty response from AI model"}]
-            
-            parsed = json.loads(response_text)
-            
-            # Validate it's a list of dictionaries
-            if isinstance(parsed, list):
-                return parsed
-            elif isinstance(parsed, dict) and "script" in parsed:
-                return parsed["script"]
-            else:
-                brain_logger.warning(f"Unexpected response format: {type(parsed)}")
-                return [{"speaker": "System", "text": f"Unexpected response format: {parsed}"}]
+        
+        # Model fallback list for reliability
+        models_to_try = ["llama3.1:8b", "llama2:13b", "neural-chat:7b"]
+        
+        for attempt, model in enumerate(models_to_try, 1):
+            try:
+                # Truncate content for reliability
+                content_preview = repo_content[:1000] if len(repo_content) > 1000 else repo_content
+                prompt = f"{system_prompt}\n\nRepo Analysis:\n{content_preview}\n\nRespond with ONLY valid JSON."
                 
-        except json.JSONDecodeError as e:
-            brain_logger.error(f"JSON Parse Error: {str(e)}")
-            log_ollama_error(f"JSON Parse Error: {str(e)}", url_base)
-            return [{"speaker": "System", "text": f"JSON Parse Error: {str(e)}"}]
-        except requests.exceptions.Timeout:
-            brain_logger.error("Ollama request timeout (60s)")
-            log_ollama_error("Request timeout", url_base)
-            return [{"speaker": "System", "text": "AI model timeout"}]
-        except Exception as e:
-            brain_logger.error(f"Ollama Error: {str(e)}")
-            log_ollama_error(str(e), url_base)
-            return [{"speaker": "System", "text": f"Error: {str(e)}"}]
+                payload = {"model": model, "prompt": prompt, "stream": False}
+                
+                brain_logger.debug(f"Attempt {attempt}/{len(models_to_try)}: Trying model {model}")
+                log_ollama_request(model, prompt, url_base)
+                
+                start_time = time.time()
+                response = requests.post(url_base, json=payload, timeout=60)
+                response.raise_for_status()
+                
+                data = response.json()
+                response_text = data.get("response", "").strip()
+                
+                duration_ms = (time.time() - start_time) * 1000
+                
+                # Check for empty response
+                if not response_text:
+                    brain_logger.warning(f"Empty response from {model} at {url_base}")
+                    brain_logger.debug(f"Full response object: {data}")
+                    continue  # Try next model
+                
+                log_ollama_response(response_text, duration_ms)
+                
+                # Try to parse JSON
+                try:
+                    parsed = json.loads(response_text)
+                except json.JSONDecodeError as e:
+                    brain_logger.warning(f"JSON parse error from {model}: {str(e)}")
+                    brain_logger.debug(f"Response text: {response_text[:200]}")
+                    continue  # Try next model
+                
+                # Validate it's a list of dictionaries
+                if isinstance(parsed, list):
+                    brain_logger.info(f"✅ Successfully generated script with {model}")
+                    return parsed
+                elif isinstance(parsed, dict) and "script" in parsed:
+                    brain_logger.info(f"✅ Successfully generated script with {model}")
+                    return parsed["script"]
+                else:
+                    brain_logger.warning(f"Unexpected response format from {model}: {type(parsed)}")
+                    continue  # Try next model
+                    
+            except requests.exceptions.Timeout:
+                brain_logger.warning(f"Timeout on {model} (attempt {attempt}/{len(models_to_try)})")
+                log_ollama_error(f"Request timeout on {model}", url_base)
+                continue
+            except requests.exceptions.ConnectionError as e:
+                brain_logger.error(f"Connection error with {model}: {str(e)}")
+                log_ollama_error(f"Connection error: {str(e)}", url_base)
+                continue
+            except Exception as e:
+                brain_logger.error(f"Unexpected error with {model}: {str(e)}")
+                log_ollama_error(f"Unexpected error: {str(e)}", url_base)
+                continue
+        
+        # All models failed
+        brain_logger.error(f"❌ All models failed after {len(models_to_try)} attempts")
+        return [{"speaker": "System", "text": f"All AI models failed. Check Ollama is running at {url_base}"}]
     else:
         # Cloud logic (same as before)
         pass
