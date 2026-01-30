@@ -3,11 +3,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
-from daytona_sdk import Daytona, DaytonaConfig
+from daytona_sdk import Daytona
 
 # This runs INSIDE your main Daytona workspace.
 # It uses the SDK to spawn ephemeral "Agent" sandboxes to read other repos.
-def get_repo_content(repo_url):
+def get_repo_content(repo_url, deep_mode=False, provider="Local (Ollama)"):
     print(f"🕵️  Agent: Analyzing {repo_url}...")
     
     # Initialize SDK
@@ -17,6 +17,7 @@ def get_repo_content(repo_url):
     # We use the 'standard' image to ensure git/tools are present
     try:
         print("🚀 Agent: Spinning up isolated sandbox...")
+        # Create an ephemeral sandbox for the target repo
         sandbox = daytona.create()
         
         # Clone the target repo inside that sandbox
@@ -37,7 +38,7 @@ def get_repo_content(repo_url):
         # Cleanup (Kill the sandbox to save resources)
         print("💥 Agent: Job done. Destroying sandbox.")
         try:
-            daytona.delete(sandbox.id)
+            daytona.delete(sandbox)
         except:
             print("⚠️ Cleanup failed. You may need to manually delete this sandbox later.")
         

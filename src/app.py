@@ -70,7 +70,8 @@ if st.button("GENERATE VIBE"):
         status.info(f"🚀 Spinning up Daytona Sandbox for {repo_url}...")
         try:
             content = get_repo_content(repo_url)
-            st.expander("See Raw Content").text(content[:500]) # Debug view
+            with st.expander("See Raw Content", expanded=True):
+                st.text_area("Full Scraped Data", content, height=400)
         except Exception as e:
             st.error(f"Ingest failed: {e}")
             st.stop()
