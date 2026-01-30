@@ -19,6 +19,40 @@ env/
 # IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+temp_*.wav
+*.mp3
+final_episode.mp3
+
+# Test coverage
+.coverage
+.pytest_cache/
+htmlcov/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Kokoro models (large files)
+kokoro-v1.0.onnx
+voices-v1.0.bin
+
+# Streamlit cache
+.streamlit/
+
+# Large data
+*.mp4
+*.flac
+
+.idea/
 
 # Mac/Linux Junk
 .DS_Storekokoro-v1.0.onnx

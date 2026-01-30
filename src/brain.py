@@ -2,7 +2,9 @@ import os
 import json
 import requests
 import subprocess
+import time
 from openai import OpenAI
+from debug_logger import brain_logger, log_ollama_request, log_ollama_response, log_ollama_error, log_character_load
 
 # Updated Prompt: Enforces education and explanation over pure banter
 BASE_PROMPT = """
@@ -43,9 +45,12 @@ def load_character(char_name):
         # PATH FIX: Now points to src/characters/
         filename = f"src/characters/{char_name.lower()}.json"
         with open(filename, "r") as f:
-            return json.load(f)
+            data = json.load(f)
+            log_character_load(char_name, True)
+            return data
     except Exception as e:
         print(f"⚠️ Could not load character {char_name}: {e}")
+        log_character_load(char_name, False, str(e))
         return {"name": char_name, "description": "A standard radio host."}
 
 def plan_research(file_tree, provider="Local (Ollama)"):
@@ -64,6 +69,7 @@ def plan_research(file_tree, provider="Local (Ollama)"):
 
 def generate_script(repo_content, host1, host2, provider="Local (Ollama)"):
     print(f"🧠 Brain: Generating script for {host1} vs {host2}...")
+    brain_logger.info(f"Generating script for hosts: {host1}, {host2} | Provider: {provider}")
     
     # 1. Load Personality Data
     h1_data = load_character(host1)
@@ -79,16 +85,31 @@ def generate_script(repo_content, host1, host2, provider="Local (Ollama)"):
     if "Local" in provider:
         url_base = f"http://{host_ip}:11434/api/generate"
         try:
-            prompt = f"{system_prompt}\n\nRepo Analysis:\n{repo_content}\n\nRespond with ONLY valid JSON."
-            # Using llama3.1:8b for technical explanation
-            payload = {"model": "llama3.1:8b", "prompt": prompt, "stream": False}
+            # Truncate content for reliability
+            content_preview = repo_content[:1000] if len(repo_content) > 1000 else repo_content
+            prompt = f"{system_prompt}\n\nRepo Analysis:\n{content_preview}\n\nRespond with ONLY valid JSON."
             
-            response = requests.post(url_base, json=payload, timeout=120)
+            # Using llama3.1:8b for technical explanation
+            model = "llama3.1:8b"
+            payload = {"model": model, "prompt": prompt, "stream": False}
+            
+            log_ollama_request(model, prompt, url_base)
+            
+            start_time = time.time()
+            response = requests.post(url_base, json=payload, timeout=60)
             response.raise_for_status()
+            
             data = response.json()
             response_text = data.get("response", "")
             
+            duration_ms = (time.time() - start_time) * 1000
+            log_ollama_response(response_text, duration_ms)
+            
             # Parse the JSON response
+            if not response_text or response_text.strip() == "":
+                brain_logger.warning("Empty response from Ollama")
+                return [{"speaker": "System", "text": "Empty response from AI model"}]
+            
             parsed = json.loads(response_text)
             
             # Validate it's a list of dictionaries
@@ -97,11 +118,20 @@ def generate_script(repo_content, host1, host2, provider="Local (Ollama)"):
             elif isinstance(parsed, dict) and "script" in parsed:
                 return parsed["script"]
             else:
+                brain_logger.warning(f"Unexpected response format: {type(parsed)}")
                 return [{"speaker": "System", "text": f"Unexpected response format: {parsed}"}]
                 
         except json.JSONDecodeError as e:
+            brain_logger.error(f"JSON Parse Error: {str(e)}")
+            log_ollama_error(f"JSON Parse Error: {str(e)}", url_base)
             return [{"speaker": "System", "text": f"JSON Parse Error: {str(e)}"}]
+        except requests.exceptions.Timeout:
+            brain_logger.error("Ollama request timeout (60s)")
+            log_ollama_error("Request timeout", url_base)
+            return [{"speaker": "System", "text": "AI model timeout"}]
         except Exception as e:
+            brain_logger.error(f"Ollama Error: {str(e)}")
+            log_ollama_error(str(e), url_base)
             return [{"speaker": "System", "text": f"Error: {str(e)}"}]
     else:
         # Cloud logic (same as before)
