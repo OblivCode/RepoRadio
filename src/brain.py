@@ -85,8 +85,8 @@ def generate_script(repo_content, host1, host2, provider="Local (Ollama)"):
     if "Local" in provider:
         url_base = f"http://{host_ip}:11434/api/generate"
         
-        # Model fallback list for reliability
-        models_to_try = ["llama3.1:8b", "llama2:13b", "neural-chat:7b"]
+        # Model fallback list for reliability (in order of preference)
+        models_to_try = ["llama3.1:8b", "llama3:latest", "deepseek-r1:8b"]
         
         for attempt, model in enumerate(models_to_try, 1):
             try:
