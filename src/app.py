@@ -12,7 +12,7 @@ st.title("📻 RepoRadio")
 
 # --- 1. SCAN FOR CHARACTERS ---
 # Look for json files in the characters folder
-character_files = glob.glob("characters/*.json")
+character_files = glob.glob("src/characters/*.json")
 character_names = [os.path.basename(f).replace(".json", "").capitalize() for f in character_files]
 
 if not character_names:
