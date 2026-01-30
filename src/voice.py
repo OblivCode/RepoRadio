@@ -55,46 +55,69 @@ except Exception as e:
 # ... [Keep your existing helper functions below] ...
 
 def get_voice_id(character_name, provider):
-    # ... (Keep existing implementation) ...
     try:
         clean_name = character_name.split(" ")[0].lower()
-        filename = f"characters/{clean_name}.json"
+        # PATH FIX: src/characters/
+        filename = f"src/characters/{clean_name}.json" 
+        
         with open(filename, "r") as f:
             data = json.load(f)
+            
         if "Local" in provider:
             return data.get("kokoro_voice", "af_bella")
         else:
             return data.get("elevenlabs_voice", "JBFqnCBsd6RMkjVDRZzb")
     except:
         return "af_bella"
-
+    
 def render_audio(script, provider="Local (Kokoro)"):
     print(f"🔊 Voice: Rendering audio using {provider}...")
     combined_audio = AudioSegment.empty()
     
     if "Local" in provider and kokoro is None:
         raise Exception("Kokoro failed to load. Check logs.")
-        
+    
+    # Validate script format
+    if not isinstance(script, list):
+        raise Exception(f"Script must be a list, got {type(script)}")
+    
     for i, line in enumerate(script):
-        speaker = line["speaker"]
-        text = line["text"]
+        # Validate line is a dict
+        if not isinstance(line, dict):
+            print(f"⚠️ Skipping line {i}: expected dict, got {type(line)}")
+            continue
+        
+        speaker = line.get("speaker", "System")
+        text = line.get("text", "")
+        
+        if not text:
+            print(f"⚠️ Skipping line {i}: no text content")
+            continue
+        
         voice_id = get_voice_id(speaker, provider)
+        print(f"   🎙️ {speaker}: {text[:50]}...")
         
         filename = f"temp_{i}.wav"
         
-        if "Local" in provider:
-            samples, sample_rate = kokoro.create(text, voice=voice_id, speed=1.0, lang="en-us")
-            sf.write(filename, samples, sample_rate)
-        else:
-            client = ElevenLabs(api_key=os.getenv("ELEVENLABS_API_KEY"))
-            audio_gen = client.generate(text=text, voice=voice_id, model="eleven_turbo_v2")
-            save(audio_gen, filename)
+        try:
+            if "Local" in provider:
+                samples, sample_rate = kokoro.create(text, voice=voice_id, speed=1.0, lang="en-us")
+                sf.write(filename, samples, sample_rate)
+            else:
+                client = ElevenLabs(api_key=os.getenv("ELEVENLABS_API_KEY"))
+                audio_gen = client.generate(text=text, voice=voice_id, model="eleven_turbo_v2")
+                save(audio_gen, filename)
 
-        if os.path.exists(filename):
-            segment = AudioSegment.from_wav(filename)
-            combined_audio += segment + AudioSegment.silent(duration=300)
-            os.remove(filename)
+            if os.path.exists(filename):
+                segment = AudioSegment.from_wav(filename)
+                combined_audio += segment + AudioSegment.silent(duration=300)
+                os.remove(filename)
+        except Exception as e:
+            print(f"⚠️ Error rendering line {i}: {e}")
+            continue
 
     output_file = "final_episode.mp3"
+    combined_audio.export(output_file, format="mp3")
+    return output_file
     combined_audio.export(output_file, format="mp3")
     return output_file
