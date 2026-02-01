@@ -10,18 +10,18 @@ from debug_logger import voice_logger
 
 
 def get_random_background_track():
-    """Get a random background music track from src/music/ folder."""
-    music_dir = Path(__file__).parent.parent / "music"
+    """Get a random background music track from src/music/background/ folder."""
+    background_dir = Path(__file__).parent.parent / "music" / "background"
     
-    if not music_dir.exists():
-        voice_logger.warning("Music directory not found, skipping background music")
+    if not background_dir.exists():
+        voice_logger.warning("Background music directory not found, skipping background music")
         return None
     
     # Find all audio files (mp3, wav, ogg)
-    audio_files = list(music_dir.glob("*.mp3")) + list(music_dir.glob("*.wav")) + list(music_dir.glob("*.ogg"))
+    audio_files = list(background_dir.glob("*.mp3")) + list(background_dir.glob("*.wav")) + list(background_dir.glob("*.ogg"))
     
     if not audio_files:
-        voice_logger.warning("No music files found in src/music/, skipping background music")
+        voice_logger.warning("No music files found in src/music/background/, skipping background music")
         return None
     
     selected_track = random.choice(audio_files)
@@ -125,13 +125,13 @@ def add_intro_outro(dialogue_audio, intro_path=None, outro_path=None):
     Returns:
         AudioSegment with intro/outro added
     """
-    assets_dir = Path(__file__).parent / "assets"
+    music_dir = Path(__file__).parent.parent / "music"
     
-    # Default intro/outro paths
+    # Default intro/outro paths - use intro.wav and outro.wav from music folder
     if intro_path is None:
-        intro_path = assets_dir / "intro_jingle.mp3"
+        intro_path = music_dir / "intro.wav"
     if outro_path is None:
-        outro_path = assets_dir / "outro_jingle.mp3"
+        outro_path = music_dir / "outro.wav"
     
     result = dialogue_audio
     
@@ -179,18 +179,23 @@ def add_ad_break_transition(dialogue_audio, ad_audio, ad_position=None):
     before_ad = dialogue_audio[:ad_position]
     after_ad = dialogue_audio[ad_position:]
     
-    # Add transition sound if available
-    assets_dir = Path(__file__).parent / "assets"
-    transition_path = assets_dir / "ad_transition.mp3"
+    # Get random transition sound from music/transitions/ folder
+    transitions_dir = Path(__file__).parent.parent / "music" / "transitions"
+    transition = None
     
-    if os.path.exists(transition_path):
-        try:
-            transition = AudioSegment.from_file(transition_path)
-            result = before_ad + transition + ad_audio + transition + after_ad
-            voice_logger.info("Added ad break with transition sounds")
-        except Exception as e:
-            voice_logger.warning(f"Failed to add transition sound: {str(e)}")
-            result = before_ad + AudioSegment.silent(duration=300) + ad_audio + AudioSegment.silent(duration=300) + after_ad
+    if transitions_dir.exists():
+        transition_files = list(transitions_dir.glob("*.wav")) + list(transitions_dir.glob("*.mp3")) + list(transitions_dir.glob("*.ogg"))
+        if transition_files:
+            try:
+                transition_path = random.choice(transition_files)
+                transition = AudioSegment.from_file(transition_path)
+                voice_logger.info(f"Using transition: {transition_path.name}")
+            except Exception as e:
+                voice_logger.warning(f"Failed to load transition sound: {str(e)}")
+    
+    if transition:
+        result = before_ad + transition + ad_audio + transition + after_ad
+        voice_logger.info("Added ad break with transition sounds")
     else:
         # No transition sound, use silence
         result = before_ad + AudioSegment.silent(duration=300) + ad_audio + AudioSegment.silent(duration=300) + after_ad

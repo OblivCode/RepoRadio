@@ -1,10 +1,42 @@
-# 🎵 Background Music Folder
+# 🎵 Music & Audio Assets Folder
 
-This folder contains background music tracks for RepoRadio podcasts.
+This folder contains organized audio assets for RepoRadio podcasts.
 
-## Usage
+## Folder Structure
 
-RepoRadio will automatically select a random track from this folder to use as background music during podcast generation.
+```
+music/
+├── intro.wav           # Podcast intro jingle (used automatically)
+├── outro.wav           # Podcast outro jingle (used automatically)
+├── background/         # Background music tracks (randomly selected)
+│   ├── lofi-track-1.mp3
+│   ├── lofi-track-2.mp3
+│   └── ...
+└── transitions/        # Ad break transition sounds (randomly selected)
+    ├── transition1.wav
+    ├── transition2.wav
+    └── ...
+```
+
+## How It Works
+
+### Intro & Outro
+- `intro.wav` and `outro.wav` are **always used** when "🎺 Intro/Outro Jingles" is enabled
+- Automatically prepended/appended to the podcast
+- Keep these files 5-10 seconds long
+
+### Background Music
+- All files in `background/` folder are candidates for random selection
+- One track is randomly chosen per podcast generation
+- Volume automatically reduced by 20dB so dialogue remains clear
+- Loops seamlessly if dialogue is longer than the music
+- 3-second fade-out applied at the end
+
+### Transitions
+- All files in `transitions/` folder are used for ad break transitions
+- One transition is randomly chosen when sponsor breaks are inserted
+- Plays before and after the ad break
+- Keep these files 2-3 seconds long
 
 ## Supported Formats
 
@@ -14,24 +46,31 @@ RepoRadio will automatically select a random track from this folder to use as ba
 
 ## Track Requirements
 
-- **Duration:** Recommended 2-5 minutes (will loop automatically for longer episodes)
-- **Genre:** Lo-fi beats, ambient, chill electronic, tech news background music
-- **Volume:** Will be reduced by 20dB automatically, so use normal mastering levels
+**Intro/Outro:**
+- Duration: 5-10 seconds
+- Format: WAV recommended for quality
+- Volume: Normal mastering levels
 
-## Example Tracks to Add
+**Background Music:**
+- Duration: 2-5 minutes (will loop for longer episodes)
+- Genre: Lo-fi beats, ambient, chill electronic, tech news background music
+- Volume: Normal mastering (auto-ducked by 20dB)
 
-1. `lofi_beats_1.mp3` - For deep technical discussions
-2. `tech_news_energy.mp3` - For high-energy Hype Man episodes
-3. `ambient_code.mp3` - For detailed code analysis segments
+**Transitions:**
+- Duration: 2-3 seconds
+- Format: WAV recommended
+- Style: Swoosh, whoosh, or subtle musical transition
 
-## How It Works
+## Usage
 
-When background music is enabled:
-1. A random track is selected from this folder
-2. Volume is reduced by 20dB so dialogue remains clear
-3. Track loops seamlessly if dialogue is longer than the music
-4. Fade-out is applied at the end for polish
+When production features are enabled:
+1. **Background Music** - Random track from `background/` plays behind dialogue
+2. **Intro/Outro** - `intro.wav` and `outro.wav` bookend the episode
+3. **Transitions** - Random sound from `transitions/` used for ad breaks
+
+All features are opt-in via the Settings expander in the UI.
 
 ---
 
-**Note:** Add your own royalty-free or licensed music files here. The folder is currently empty.
+**Note:** This folder is pre-populated with tracks. Organize them into subfolders as shown above.
+
