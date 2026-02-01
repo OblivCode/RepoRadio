@@ -13,6 +13,10 @@ elevenlabs==0.2.26
 # Utilities
 python-dotenv==1.0.1
 
+# Development and Testing
+pytest==7.4.3
+pytest-mock==3.12.0
+
 # System dependencies (install separately):
 # - ffmpeg (required by pydub)
 # - libsndfile1 (required by soundfile)
