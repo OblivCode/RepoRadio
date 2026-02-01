@@ -13,6 +13,14 @@ st.set_page_config(page_title="RepoRadio", page_icon="📻", layout="wide")
 
 st.title("📻 RepoRadio")
 
+# Initialize session state for persisting generated content
+if 'generated_script' not in st.session_state:
+    st.session_state.generated_script = None
+if 'generated_audio' not in st.session_state:
+    st.session_state.generated_audio = None
+if 'generated_content' not in st.session_state:
+    st.session_state.generated_content = None
+
 # --- 1. LOAD CHARACTER DATA ---
 # Load full character data including descriptions
 def load_all_characters():
@@ -174,9 +182,7 @@ if st.button("GENERATE VIBE"):
         status.info(f"🚀 Spinning up Daytona Sandbox...")
         log_app_event("Stage 1: Ingesting repository", repo_url)
         content = get_repo_content(repo_url, deep_mode=deep_mode, provider=provider)
-        
-        with st.expander("See Raw Content"):
-            st.text_area("Debug", content, height=300)
+        st.session_state.generated_content = content
         
         # 2. Brain
         status.info(f"🎙️ Writing script for {', '.join(hosts)}...")
@@ -192,10 +198,10 @@ if st.button("GENERATE VIBE"):
             deps_start = content.find("DEPENDENCIES")
             deps_end = content.find("\n\n", deps_start + 100) if deps_start != -1 else -1
             dependencies_content = content[deps_start:deps_end] if deps_start != -1 else ""
-            script = inject_ad_break(script, dependencies_content, hosts)
+            if dependencies_content:  # Only inject if we have dependencies
+                script = inject_ad_break(script, dependencies_content, hosts)
         
-        with st.expander("📝 Script (click to expand)", expanded=False):
-            st.json(script)
+        st.session_state.generated_script = script
         
         # 3. Voice
         status.info(f"🔊 Synthesizing audio...")
@@ -209,6 +215,18 @@ if st.button("GENERATE VIBE"):
             crossfade=enable_crossfade
         )
         
+        st.session_state.generated_audio = audio_file
         log_app_event("Pipeline complete", f"Output: {audio_file}")
         status.success("✅ Episode Ready!")
-        st.audio(audio_file)
+
+# Display generated content from session state (persists across setting changes)
+if st.session_state.generated_content:
+    with st.expander("See Raw Content"):
+        st.text_area("Debug", st.session_state.generated_content, height=300)
+
+if st.session_state.generated_script:
+    with st.expander("📝 Script (click to expand)", expanded=False):
+        st.json(st.session_state.generated_script)
+
+if st.session_state.generated_audio:
+    st.audio(st.session_state.generated_audio)

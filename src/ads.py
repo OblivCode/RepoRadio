@@ -58,7 +58,8 @@ def extract_dependencies(dependencies_content):
     Returns:
         List of package names
     """
-    if not dependencies_content:
+    if not dependencies_content or not dependencies_content.strip():
+        brain_logger.warning("Empty dependencies content provided")
         return []
     
     packages = []
@@ -66,7 +67,12 @@ def extract_dependencies(dependencies_content):
     try:
         # Try JSON (package.json, composer.json)
         if "{" in dependencies_content and "}" in dependencies_content:
-            data = json.loads(dependencies_content)
+            # Extract JSON portion
+            json_start = dependencies_content.find("{")
+            json_end = dependencies_content.rfind("}") + 1
+            json_content = dependencies_content[json_start:json_end]
+            
+            data = json.loads(json_content)
             
             # package.json structure
             if "dependencies" in data:

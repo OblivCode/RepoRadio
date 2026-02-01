@@ -94,6 +94,9 @@ def render_audio_line(line_index, line_data, provider):
     speaker = line_data.get("speaker", "System")
     text = line_data.get("text", "")
     
+    # Strip newlines to prevent Kokoro line count mismatch errors
+    text = text.replace("\n", " ").strip()
+    
     if not text:
         voice_logger.warning(f"Line {line_index}: no text content")
         print(f"⚠️ Skipping line {line_index}: no text content")
