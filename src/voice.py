@@ -73,6 +73,34 @@ def get_voice_id(character_name, provider):
             return data.get("elevenlabs_voice", "JBFqnCBsd6RMkjVDRZzb")
     except (FileNotFoundError, json.JSONDecodeError, KeyError):
         return "af_bella"
+
+def get_transition_sound():
+    """Load a random transition sound from music/transitions/ folder.
+    
+    Returns:
+        AudioSegment or None if no transition sounds available
+    """
+    from pathlib import Path
+    import random
+    
+    transitions_dir = Path("src/music/transitions")
+    if not transitions_dir.exists():
+        voice_logger.debug("Transitions directory not found")
+        return None
+    
+    transition_files = list(transitions_dir.glob("*.wav")) + list(transitions_dir.glob("*.mp3")) + list(transitions_dir.glob("*.ogg"))
+    if not transition_files:
+        voice_logger.debug("No transition sound files found")
+        return None
+    
+    try:
+        transition_path = random.choice(transition_files)
+        transition = AudioSegment.from_file(str(transition_path))
+        voice_logger.debug(f"Loaded transition: {transition_path.name}")
+        return transition
+    except Exception as e:
+        voice_logger.warning(f"Failed to load transition sound: {str(e)}")
+        return None
     
 def render_audio_line(line_index, line_data, provider):
     """Render a single line of audio. Used for parallel processing.
@@ -190,12 +218,34 @@ def render_audio(script, provider="Local (Kokoro)", max_workers=4, enable_music=
     # Combine segments in correct order
     voice_logger.info(f"Combining {len(audio_segments)} audio segments in order...")
     
+    # Check if there's a sponsor ad in the script
+    ad_index = None
+    for i, line in enumerate(script):
+        if "sponsor" in line.get("text", "").lower() or "brought to you by" in line.get("text", "").lower():
+            ad_index = i
+            voice_logger.info(f"Detected sponsor ad at index {i}")
+            break
+    
     if crossfade:
-        # Use crossfading for smooth transitions
+        # Build segments list and add transitions around ad if present
         segments_list = []
         for i in range(len(script)):
             if i in audio_segments:
+                # Add transition before ad
+                if i == ad_index:
+                    transition_sound = get_transition_sound()
+                    if transition_sound:
+                        segments_list.append(transition_sound)
+                        voice_logger.info("Added transition sound before sponsor ad")
+                
                 segments_list.append(audio_segments[i])
+                
+                # Add transition after ad
+                if i == ad_index:
+                    transition_sound = get_transition_sound()
+                    if transition_sound:
+                        segments_list.append(transition_sound)
+                        voice_logger.info("Added transition sound after sponsor ad")
             else:
                 voice_logger.warning(f"Missing audio for line {i}, skipping")
         

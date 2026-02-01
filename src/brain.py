@@ -284,7 +284,13 @@ Generate the next line of dialogue. Return ONLY JSON: {{"speaker": "Name", "text
         # PART 3: Post-break conversation
         brain_logger.info(f"Generating post-break conversation ({POST_BREAK_LINES} lines)")
         for i in range(POST_BREAK_LINES):
-            line = generate_one_line(script, context_note="Dive deeper into technical details and wrap up.")
+            # First line after ad should acknowledge the break
+            if i == 0 and include_ad_break and dependencies:
+                context_note = "We just came back from the sponsor break. Smoothly transition back to discussing the project. Maybe say something like 'Alright, back to the code!' or 'So where were we?' or just continue naturally."
+            else:
+                context_note = "Continue the technical discussion, dive deeper into implementation details, and build toward a conclusion."
+            
+            line = generate_one_line(script, context_note=context_note)
             if line:
                 script.append(line)
                 print(f"   🎙️ {line['speaker']}: {line['text'][:60]}...")
