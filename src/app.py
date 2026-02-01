@@ -5,7 +5,8 @@ import json
 from ingest import get_repo_content
 from brain import generate_script
 # IMPORTS THE SMART VOICE ENGINE (Triggers auto-download)
-from voice import render_audio 
+from voice import render_audio
+from ads import inject_ad_break
 from debug_logger import app_logger, log_app_event, log_script_generation 
 
 st.set_page_config(page_title="RepoRadio", page_icon="📻", layout="wide")
@@ -147,8 +148,19 @@ with st.expander("⚙️ Settings"):
     c1, c2 = st.columns(2)
     provider = c1.selectbox("AI Brain", ["Local (Ollama)", "Cloud (Siray/OpenAI)"])
     voice_provider = c2.selectbox("Voice Engine", ["Local (Kokoro)", "Cloud (ElevenLabs)"])
+    
     # Deep mode toggle
     deep_mode = st.checkbox("🕵️ Enable Deep Radio (Agentic Read)", value=True)
+    
+    # Production Studio Features
+    st.markdown("### 🎬 Production Studio")
+    c3, c4 = st.columns(2)
+    enable_music = c3.checkbox("🎵 Background Music", value=False, help="Overlay lo-fi beats during dialogue")
+    enable_jingles = c4.checkbox("🎺 Intro/Outro Jingles", value=False, help="Add podcast intro and outro")
+    
+    c5, c6 = st.columns(2)
+    enable_ads = c5.checkbox("📢 Sponsor Breaks", value=False, help="Insert humorous fake ads based on dependencies")
+    enable_crossfade = c6.checkbox("🎚️ Crossfade Transitions", value=True, help="Smooth audio transitions between speakers")
 
 # --- 3. GENERATE BUTTON ---
 if st.button("GENERATE VIBE"):
@@ -171,14 +183,31 @@ if st.button("GENERATE VIBE"):
         log_app_event("Stage 2: Generating script", f"Hosts: {', '.join(hosts)}, Provider: {provider}")
         script = generate_script(content, hosts, provider)
         log_script_generation(hosts, len(str(script)))
+        
+        # 2.5. Inject sponsor ad if enabled
+        if enable_ads and "DEPENDENCIES" in content:
+            status.info("📢 Generating sponsor break...")
+            app_logger.info("Injecting fake sponsor ad")
+            # Extract dependencies section from content
+            deps_start = content.find("DEPENDENCIES")
+            deps_end = content.find("\n\n", deps_start + 100) if deps_start != -1 else -1
+            dependencies_content = content[deps_start:deps_end] if deps_start != -1 else ""
+            script = inject_ad_break(script, dependencies_content)
+        
         with st.expander("📝 Script (click to expand)", expanded=False):
             st.json(script)
         
         # 3. Voice
         status.info(f"🔊 Synthesizing audio...")
         log_app_event("Stage 3: Rendering audio", f"Provider: {voice_provider}")
-        # This now calls the function in voice.py, which ensures models exist
-        audio_file = render_audio(script, voice_provider)
+        # This now calls the function in voice.py with production features
+        audio_file = render_audio(
+            script, 
+            voice_provider,
+            enable_music=enable_music,
+            enable_jingles=enable_jingles,
+            crossfade=enable_crossfade
+        )
         
         log_app_event("Pipeline complete", f"Output: {audio_file}")
         status.success("✅ Episode Ready!")

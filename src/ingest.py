@@ -61,6 +61,85 @@ def get_repo_content(repo_url, deep_mode=False, provider="Local (Ollama)"):
         
         ingest_logger.info(f"Successfully cloned {repo_url}")
         log_git_clone(repo_url, True)
+        
+        # Git Archaeology: Analyze repository history for drama/context
+        git_history = ""
+        dependencies_content = ""
+        
+        if deep_mode:
+            print("🕵️ Agent: Analyzing git history...")
+            ingest_logger.info("Git archaeology: extracting commit history and contributors")
+            
+            # Get recent commit messages (look for interesting patterns)
+            git_log_res = sandbox.process.exec(f"git -C {repo_name} log --oneline -20 --date=short --format='%h|%ad|%s'")
+            if git_log_res.exit_code == 0 and git_log_res.result:
+                commits = git_log_res.result.strip().split('\n')
+                ingest_logger.debug(f"Found {len(commits)} recent commits")
+                
+                # Analyze commits for interesting patterns
+                late_night_commits = []
+                panic_commits = []
+                
+                for commit in commits:
+                    parts = commit.split('|')
+                    if len(parts) >= 3:
+                        commit_hash, date, message = parts[0], parts[1], '|'.join(parts[2:])
+                        msg_lower = message.lower()
+                        
+                        # Detect panic/stress commits
+                        if any(word in msg_lower for word in ['fix', 'bug', 'typo', 'oops', 'shit', 'fuck', 'damn', 'hate']):
+                            panic_commits.append(f"{date}: {message}")
+                        
+                        # Store for general context
+                        if len(late_night_commits) < 5:
+                            late_night_commits.append(f"{date}: {message}")
+                
+                git_commits_summary = "\n".join(late_night_commits[:5])
+                if panic_commits:
+                    git_commits_summary += "\n\nINTERESTING COMMITS:\n" + "\n".join(panic_commits[:3])
+                
+                git_history += f"\n\nRECENT COMMITS:\n{git_commits_summary}"
+                ingest_logger.debug(f"Collected {len(panic_commits)} interesting commits")
+            
+            # Get top contributors
+            git_contrib_res = sandbox.process.exec(f"git -C {repo_name} shortlog -sn --all | head -10")
+            if git_contrib_res.exit_code == 0 and git_contrib_res.result:
+                contributors = git_contrib_res.result.strip()
+                
+                # Check for bots (dependabot, renovate, etc.)
+                bot_contributors = []
+                human_contributors = []
+                for line in contributors.split('\n'):
+                    if any(bot in line.lower() for bot in ['bot', 'dependabot', 'renovate', 'github-actions']):
+                        bot_contributors.append(line)
+                    else:
+                        human_contributors.append(line)
+                
+                git_history += f"\n\nTOP CONTRIBUTORS:\n{contributors}"
+                if bot_contributors:
+                    git_history += f"\n\nBOT CONTRIBUTORS:\n" + "\n".join(bot_contributors)
+                    ingest_logger.debug(f"Found {len(bot_contributors)} bot contributors")
+                
+                ingest_logger.info(f"Git archaeology complete: {len(git_history)} chars")
+            
+            # Read dependency files for sponsor ad generation
+            print("📦 Agent: Scanning dependencies...")
+            ingest_logger.info("Reading dependency files for sponsor content")
+            
+            deps_files = ["package.json", "requirements.txt", "Cargo.toml", "go.mod", "pom.xml", "composer.json"]
+            for dep_file in deps_files:
+                dep_res = sandbox.process.exec(f"cat {repo_name}/{dep_file} 2>/dev/null")
+                if dep_res.exit_code == 0 and dep_res.result:
+                    # Limit to first 1500 chars to avoid overwhelming context
+                    content = dep_res.result[:1500] if len(dep_res.result) > 1500 else dep_res.result
+                    dependencies_content = f"\n\nDEPENDENCIES ({dep_file}):\n{content}"
+                    ingest_logger.info(f"Found dependencies in {dep_file}")
+                    print(f"   📋 Found {dep_file}")
+                    break  # Only need one dependency file
+            
+            if not dependencies_content:
+                ingest_logger.debug("No dependency files found")
+
             
         # Read the README
         print("📖 Agent: Reading documentation...")
@@ -118,7 +197,7 @@ def get_repo_content(repo_url, deep_mode=False, provider="Local (Ollama)"):
             ingest_logger.warning(f"Cleanup failed for sandbox {sandbox.id}")
             print("⚠️ Cleanup failed. You may need to manually delete this sandbox later.")
         
-        full_report = f"README CONTENT:\n{read_res.result}\n\nFILE STRUCTURE:\n{tree_res.result}{code_content}"
+        full_report = f"README CONTENT:\n{read_res.result}\n\nFILE STRUCTURE:\n{tree_res.result}{git_history}{dependencies_content}{code_content}"
         ingest_logger.info(f"Repo analysis complete: {len(full_report)} chars total")
         return full_report
 

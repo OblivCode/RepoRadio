@@ -8,6 +8,7 @@ from pydub import AudioSegment
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from debug_logger import voice_logger, log_elevenlabs_request, log_elevenlabs_response, log_elevenlabs_error, log_audio_rendering
+from audio.mixer import overlay_background_music, add_crossfade_between_segments, add_intro_outro
 
 # URLs for the models
 MODEL_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx"
@@ -140,13 +141,16 @@ def render_audio_line(line_index, line_data, provider):
         return (line_index, None)
 
 
-def render_audio(script, provider="Local (Kokoro)", max_workers=4):
-    """Render podcast script to audio with parallel processing.
+def render_audio(script, provider="Local (Kokoro)", max_workers=4, enable_music=False, enable_jingles=False, crossfade=True):
+    """Render podcast script to audio with parallel processing and production effects.
     
     Args:
         script: List of line objects with 'speaker' and 'text' fields
         provider: Voice provider ('Local (Kokoro)' or 'Cloud (ElevenLabs)')
         max_workers: Maximum number of parallel workers (default: 4)
+        enable_music: Whether to add background music (default: False)
+        enable_jingles: Whether to add intro/outro jingles (default: False)
+        crossfade: Whether to crossfade between dialogue segments (default: True)
     
     Returns:
         Path to final MP3 file
@@ -182,13 +186,35 @@ def render_audio(script, provider="Local (Kokoro)", max_workers=4):
     
     # Combine segments in correct order
     voice_logger.info(f"Combining {len(audio_segments)} audio segments in order...")
-    combined_audio = AudioSegment.empty()
     
-    for i in range(len(script)):
-        if i in audio_segments:
-            combined_audio += audio_segments[i] + AudioSegment.silent(duration=300)
-        else:
-            voice_logger.warning(f"Missing audio for line {i}, skipping")
+    if crossfade:
+        # Use crossfading for smooth transitions
+        segments_list = []
+        for i in range(len(script)):
+            if i in audio_segments:
+                segments_list.append(audio_segments[i])
+            else:
+                voice_logger.warning(f"Missing audio for line {i}, skipping")
+        
+        combined_audio = add_crossfade_between_segments(segments_list, crossfade_ms=200)
+    else:
+        # Original method with silence gaps
+        combined_audio = AudioSegment.empty()
+        for i in range(len(script)):
+            if i in audio_segments:
+                combined_audio += audio_segments[i] + AudioSegment.silent(duration=300)
+            else:
+                voice_logger.warning(f"Missing audio for line {i}, skipping")
+    
+    # Add intro/outro jingles if enabled
+    if enable_jingles:
+        voice_logger.info("Adding intro/outro jingles...")
+        combined_audio = add_intro_outro(combined_audio)
+    
+    # Add background music if enabled
+    if enable_music:
+        voice_logger.info("Overlaying background music...")
+        combined_audio = overlay_background_music(combined_audio)
     
     output_file = "final_episode.mp3"
     combined_audio.export(output_file, format="mp3")
