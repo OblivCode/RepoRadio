@@ -75,11 +75,23 @@ def plan_research(file_tree, provider="Local (Ollama)"):
             brain_logger.debug(f"Plan research raw response: {response_text[:200]}")
             parsed = json.loads(response_text)
             
+            # Handle wrapped responses (e.g., {"files": [...]} or {"list": [...]})
+            file_list = None
             if isinstance(parsed, list):
-                brain_logger.info(f"Plan research identified {len(parsed)} files: {parsed}")
-                return parsed
+                file_list = parsed
+            elif isinstance(parsed, dict):
+                # Try common wrapper keys
+                for key in ["files", "list", "priority_files", "important_files", "paths"]:
+                    if key in parsed and isinstance(parsed[key], list):
+                        file_list = parsed[key]
+                        brain_logger.debug(f"Extracted file list from '{key}' wrapper")
+                        break
+            
+            if file_list:
+                brain_logger.info(f"Plan research identified {len(file_list)} files: {file_list}")
+                return file_list
             else:
-                brain_logger.warning(f"Plan research returned non-list: {type(parsed)}")
+                brain_logger.warning(f"Plan research returned unexpected format: {type(parsed)}")
                 return []
                 
         except (requests.exceptions.RequestException, json.JSONDecodeError, KeyError) as e:
@@ -155,13 +167,27 @@ def generate_script(repo_content, host_names, provider="Local (Ollama)"):
                     brain_logger.debug(f"Response text: {response_text[:200]}")
                     continue  # Try next model
                 
-                # Validate it's a list of dictionaries
+                # Validate it's a list of dictionaries (handle wrapped responses)
+                script_data = None
                 if isinstance(parsed, list):
+                    script_data = parsed
+                elif isinstance(parsed, dict):
+                    # Try common wrapper keys
+                    for key in ["script", "podcast", "lines", "dialogue", "conversation"]:
+                        if key in parsed and isinstance(parsed[key], list):
+                            script_data = parsed[key]
+                            brain_logger.debug(f"Extracted script from '{key}' wrapper")
+                            break
+                    
+                    # If still no script found, log it
+                    if script_data is None:
+                        brain_logger.warning(f"Response is dict but no recognized script key. Keys: {list(parsed.keys())}")
+                        brain_logger.debug(f"Full parsed response: {parsed}")
+                        continue
+                
+                if script_data and len(script_data) > 0:
                     brain_logger.info(f"✅ Successfully generated script with {model}")
-                    return parsed
-                elif isinstance(parsed, dict) and "script" in parsed:
-                    brain_logger.info(f"✅ Successfully generated script with {model}")
-                    return parsed["script"]
+                    return script_data
                 else:
                     brain_logger.warning(f"Unexpected response format from {model}: {type(parsed)}")
                     continue  # Try next model
