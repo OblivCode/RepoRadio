@@ -141,7 +141,7 @@ def plan_research(file_tree, provider="Local (Ollama)"):
                 brain_logger.warning(f"Plan research returned unexpected format: {type(parsed)}, value: {parsed}")
                 return []
                 
-        except (requests.exceptions.RequestException, json.JSONDecodeError, KeyError) as e:
+        except (requests.exceptions.RequestException, json.JSONDecodeError, KeyError, Exception) as e:
             brain_logger.error(f"Plan research failed: {str(e)}")
             return []
     else:

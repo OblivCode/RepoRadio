@@ -93,22 +93,29 @@ def extract_dependencies(dependencies_content):
     return packages[:20]  # Limit to first 20
 
 
-def generate_fake_ad(dependencies_content):
+def generate_fake_ad(dependencies_content, host_names=None):
     """
     Generate a humorous fake sponsor ad based on project dependencies.
     
     Args:
         dependencies_content: String containing dependency file content
+        host_names: List of host names (random one will announce the ad)
     
     Returns:
         Dict with speaker and text for ad break
     """
     packages = extract_dependencies(dependencies_content)
     
+    # Select a random host to announce the ad, fallback to "Alex" or "System"
+    if host_names and len(host_names) > 0:
+        ad_speaker = random.choice(host_names)
+    else:
+        ad_speaker = "Alex"  # Default fallback
+    
     if not packages:
         brain_logger.debug("No dependencies found, using generic ad")
         return {
-            "speaker": "System",
+            "speaker": ad_speaker,
             "text": "This episode is brought to you by Open Source Software. Free as in freedom, expensive as in maintenance. Support your local maintainer.",
             "type": "ad"
         }
@@ -164,19 +171,20 @@ def generate_fake_ad(dependencies_content):
     brain_logger.debug(f"Generated ad text: {ad_text[:100]}...")
     
     return {
-        "speaker": "System",
+        "speaker": ad_speaker,
         "text": ad_text,
         "type": "ad"
     }
 
 
-def inject_ad_break(script, dependencies_content):
+def inject_ad_break(script, dependencies_content, host_names=None):
     """
     Inject a fake sponsor ad break into the middle of the script.
     
     Args:
         script: List of script line dicts
         dependencies_content: Dependency file content for ad generation
+        host_names: List of host names (one will announce the ad)
     
     Returns:
         Modified script with ad break inserted
@@ -185,8 +193,8 @@ def inject_ad_break(script, dependencies_content):
         brain_logger.warning("Script too short for ad break insertion")
         return script
     
-    # Generate the ad
-    ad_break = generate_fake_ad(dependencies_content)
+    # Generate the ad with host announcement
+    ad_break = generate_fake_ad(dependencies_content, host_names)
     
     # Insert at roughly the midpoint (between 40-60% through)
     total_lines = len(script)

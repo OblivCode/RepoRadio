@@ -192,7 +192,7 @@ if st.button("GENERATE VIBE"):
             deps_start = content.find("DEPENDENCIES")
             deps_end = content.find("\n\n", deps_start + 100) if deps_start != -1 else -1
             dependencies_content = content[deps_start:deps_end] if deps_start != -1 else ""
-            script = inject_ad_break(script, dependencies_content)
+            script = inject_ad_break(script, dependencies_content, hosts)
         
         with st.expander("📝 Script (click to expand)", expanded=False):
             st.json(script)

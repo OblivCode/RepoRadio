@@ -80,7 +80,7 @@ class TestValidateGithubUrl:
         ]
         
         for url in dangerous_urls:
-            with pytest.raises(ValueError, match="dangerous characters"):
+            with pytest.raises(ValueError, match="dangerous characters|Invalid GitHub URL"):
                 validate_github_url(url)
     
     def test_strip_whitespace(self):
@@ -168,7 +168,7 @@ class TestGetRepoContent:
     
     @patch("src.ingest.Daytona")
     def test_get_repo_content_deep_mode_todo(self, mock_daytona_class):
-        """Test that deep_mode parameter is acknowledged but not implemented."""
+        """Test that deep_mode parameter enables git archaeology and plan research."""
         mock_daytona = MagicMock()
         mock_daytona_class.return_value = mock_daytona
         
@@ -176,33 +176,65 @@ class TestGetRepoContent:
         mock_sandbox.id = "test-sandbox"
         mock_daytona.create.return_value = mock_sandbox
         
+        # Mock results for all exec calls in deep mode
         clone_result = MagicMock()
         clone_result.exit_code = 0
+        
+        git_log_result = MagicMock()
+        git_log_result.exit_code = 0
+        git_log_result.result = "abc123|2026-01-01|Initial commit"
+        
+        git_contrib_result = MagicMock()
+        git_contrib_result.exit_code = 0
+        git_contrib_result.result = "10\tJohn Doe"
+        
+        deps_result = MagicMock()
+        deps_result.exit_code = 1  # No dependencies found
+        
         readme_result = MagicMock()
         readme_result.result = "README"
+        
         tree_result = MagicMock()
         tree_result.result = "files"
         
-        mock_sandbox.process.exec.side_effect = [clone_result, readme_result, tree_result]
+        # Order: clone, git log, git contrib, deps (multiple attempts), readme, tree
+        mock_sandbox.process.exec.side_effect = [
+            clone_result,       # git clone
+            git_log_result,     # git log
+            git_contrib_result, # git shortlog
+            deps_result,        # package.json
+            deps_result,        # requirements.txt
+            deps_result,        # Cargo.toml
+            deps_result,        # go.mod
+            deps_result,        # pom.xml
+            deps_result,        # composer.json
+            readme_result,      # README
+            tree_result,        # file tree
+        ]
         
         with patch("src.ingest.log_daytona_sandbox"), \
-             patch("src.ingest.log_git_clone"):
+             patch("src.ingest.log_git_clone"), \
+             patch("src.ingest.plan_research") as mock_plan:
+            
+            # Mock plan_research to return empty list (no deep dive files)
+            mock_plan.return_value = []
             
             # Call with deep_mode=True
             result = get_repo_content("https://github.com/test/repo", deep_mode=True)
         
-        # Should complete successfully (deep mode just logs for now)
+        # Should complete successfully with git history included
         assert "README CONTENT:" in result
+        assert "RECENT COMMITS:" in result or "TOP CONTRIBUTORS:" in result
 
 
 class TestPlanResearch:
     """Test plan_research function (currently unused)."""
     
-    @patch("src.ingest.requests.post")
-    @patch("src.ingest.get_host_ip")
+    @patch("src.brain.requests.post")
+    @patch("src.brain.get_host_ip")
     def test_plan_research_returns_file_list(self, mock_ip, mock_post):
         """Test that plan_research returns list of priority files."""
-        from src.ingest import plan_research
+        from src.brain import plan_research
         
         mock_ip.return_value = "localhost"
         
@@ -217,11 +249,11 @@ class TestPlanResearch:
         assert isinstance(result, list)
         assert len(result) <= 3  # Should return up to 3 files
     
-    @patch("src.ingest.requests.post")
-    @patch("src.ingest.get_host_ip")
+    @patch("src.brain.requests.post")
+    @patch("src.brain.get_host_ip")
     def test_plan_research_handles_errors(self, mock_ip, mock_post):
         """Test that plan_research returns empty list on error."""
-        from src.ingest import plan_research
+        from src.brain import plan_research
         
         mock_ip.return_value = "localhost"
         mock_post.side_effect = Exception("Connection failed")

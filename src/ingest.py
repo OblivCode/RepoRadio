@@ -10,6 +10,9 @@ from debug_logger import ingest_logger, log_daytona_sandbox, log_daytona_error, 
 
 def validate_github_url(url):
     """Validate and sanitize GitHub URL to prevent command injection."""
+    # Strip whitespace first
+    url = url.strip()
+    
     # Basic GitHub URL pattern
     pattern = r'^https?://github\.com/[\w\-\.]+/[\w\-\.]+/?$'
     if not re.match(pattern, url.rstrip('.git')):
@@ -18,7 +21,7 @@ def validate_github_url(url):
     dangerous_chars = ['&', '|', ';', '$', '`', '\n', '(', ')']
     if any(char in url for char in dangerous_chars):
         raise ValueError(f"URL contains potentially dangerous characters: {url}")
-    return url.strip()
+    return url
 
 # This runs INSIDE your main Daytona workspace.
 # It uses the SDK to spawn ephemeral "Agent" sandboxes to read other repos.
