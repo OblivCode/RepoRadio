@@ -69,7 +69,7 @@ def get_voice_id(character_name, provider):
             return data.get("kokoro_voice", "af_bella")
         else:
             return data.get("elevenlabs_voice", "JBFqnCBsd6RMkjVDRZzb")
-    except:
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
         return "af_bella"
     
 def render_audio(script, provider="Local (Kokoro)"):

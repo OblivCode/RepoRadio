@@ -48,7 +48,7 @@ def load_character(char_name):
             data = json.load(f)
             log_character_load(char_name, True)
             return data
-    except Exception as e:
+    except (FileNotFoundError, json.JSONDecodeError) as e:
         print(f"⚠️ Could not load character {char_name}: {e}")
         log_character_load(char_name, False, str(e))
         return {"name": char_name, "description": "A standard radio host."}
@@ -62,7 +62,7 @@ def plan_research(file_tree, provider="Local (Ollama)"):
             payload = {"model": "llama3.1:8b", "prompt": prompt, "stream": False, "format": "json"}
             res = requests.post(url_base, json=payload, timeout=15)
             return json.loads(res.json()["response"])
-        except:
+        except (requests.exceptions.RequestException, json.JSONDecodeError, KeyError):
             return []
     else:
         return []
