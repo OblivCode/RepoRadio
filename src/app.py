@@ -22,12 +22,20 @@ if not character_names:
 # --- 2. THE UI ---
 repo_url = st.text_input("Paste GitHub URL", "https://github.com/daytonaio/daytona")
 
-col1, col2 = st.columns(2)
-with col1:
-    host1 = st.selectbox("🎙️ Host 1", character_names, index=0)
-with col2:
-    default_idx = 1 if len(character_names) > 1 else 0
-    host2 = st.selectbox("🎙️ Host 2", character_names, index=default_idx)
+# Host selection with variable count (1-3)
+num_hosts = st.radio("Number of Hosts:", [1, 2, 3], index=1, horizontal=True)
+
+hosts = []
+cols = st.columns(num_hosts)
+for i in range(num_hosts):
+    with cols[i]:
+        default_idx = min(i, len(character_names) - 1)
+        host = st.selectbox(f"🎙️ Host {i+1}", character_names, index=default_idx, key=f"host_{i}")
+        hosts.append(host)
+
+# Optional: Warn about duplicate selections
+if len(hosts) != len(set(hosts)):
+    st.warning("⚠️ You selected the same character multiple times!")
 
 # Advanced settings
 with st.expander("⚙️ Settings"):
@@ -42,7 +50,7 @@ if st.button("GENERATE VIBE"):
     if not repo_url:
         st.error("Bro, drop a link first.")
     else:
-        log_app_event("Generate button clicked", f"URL: {repo_url}, Hosts: {host1} & {host2}")
+        log_app_event("Generate button clicked", f"URL: {repo_url}, Hosts: {', '.join(hosts)}")
         status = st.empty()
         
         # 1. Ingest
@@ -54,10 +62,10 @@ if st.button("GENERATE VIBE"):
             st.text_area("Debug", content, height=300)
         
         # 2. Brain
-        status.info(f"🎙️ Writing script for {host1} & {host2}...")
-        log_app_event("Stage 2: Generating script", f"Provider: {provider}")
-        script = generate_script(content, host1, host2, provider)
-        log_script_generation([host1, host2], len(str(script)))
+        status.info(f"🎙️ Writing script for {', '.join(hosts)}...")
+        log_app_event("Stage 2: Generating script", f"Hosts: {', '.join(hosts)}, Provider: {provider}")
+        script = generate_script(content, hosts, provider)
+        log_script_generation(hosts, len(str(script)))
         st.json(script)
         
         # 3. Voice
