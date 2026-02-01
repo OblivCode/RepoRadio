@@ -141,5 +141,3 @@ def render_audio(script, provider="Local (Kokoro)"):
     combined_audio.export(output_file, format="mp3")
     voice_logger.info(f"Audio render complete: {output_file}")
     return output_file
-    combined_audio.export(output_file, format="mp3")
-    return output_file
