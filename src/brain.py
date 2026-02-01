@@ -67,26 +67,35 @@ def plan_research(file_tree, provider="Local (Ollama)"):
     else:
         return []
 
-def generate_script(repo_content, host1, host2, provider="Local (Ollama)"):
-    print(f"🧠 Brain: Generating script for {host1} vs {host2}...")
-    brain_logger.info(f"Generating script for hosts: {host1}, {host2} | Provider: {provider}")
+def generate_script(repo_content, host_names, provider="Local (Ollama)"):
+    """Generate podcast script for 1-3 hosts.
     
-    # 1. Load Personality Data
-    h1_data = load_character(host1)
-    h2_data = load_character(host2)
+    Args:
+        repo_content: Repository analysis text
+        host_names: List of 1-3 character names
+        provider: AI provider string
     
-    # 2. Build Prompt
-    h1_def = f"- {h1_data['name'].upper()}: {h1_data['description']}"
-    h2_def = f"- {h2_data['name'].upper()}: {h2_data['description']}"
-    system_prompt = BASE_PROMPT.replace("HOST_1_DEF", h1_def).replace("HOST_2_DEF", h2_def)
+    Returns:
+        List of script objects with speaker and text fields
+    """
+    hosts_str = ', '.join(host_names)
+    print(f"🧠 Brain: Generating script for {hosts_str}...")
+    brain_logger.info(f"Generating script for hosts: {hosts_str} | Provider: {provider}")
+    
+    # 1. Load Personality Data for all hosts
+    host_characters = [load_character(name) for name in host_names]
+    
+    # 2. Build Prompt with dynamic host definitions
+    host_defs = [f"- {h['name'].upper()}: {h['description']}" for h in host_characters]
+    all_host_defs = "\n".join(host_defs)
+    system_prompt = BASE_PROMPT.replace("HOST_DEFINITIONS", all_host_defs)
     
     host_ip = get_host_ip()
     
     if "Local" in provider:
         url_base = f"http://{host_ip}:11434/api/generate"
         
-        # Model fallback list for reliability (in order of preference)
-        models_to_try = ["llama3.1:8b", "llama3:latest", "deepseek-r1:8b"]
+        models_to_try = ["llama3.1:8b"]
         
         for attempt, model in enumerate(models_to_try, 1):
             try:
