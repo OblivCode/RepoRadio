@@ -5,6 +5,7 @@ load_dotenv()
 import os
 import re
 from daytona_sdk import Daytona
+from brain import plan_research
 from debug_logger import ingest_logger, log_daytona_sandbox, log_daytona_error, log_git_clone
 
 def validate_github_url(url):
@@ -70,15 +71,42 @@ def get_repo_content(repo_url, deep_mode=False, provider="Local (Ollama)"):
         tree_res = sandbox.process.exec(f"find {repo_name} -maxdepth 2 -not -path '*/.*'")
         ingest_logger.debug(f"File tree size: {len(tree_res.result)} chars")
         
-        # TODO: Implement deep mode
-        # When deep_mode=True:
-        # 1. Call plan_research(tree_res.result, provider) to get priority files
-        # 2. Read those files from sandbox with: sandbox.process.exec(f"cat {repo_name}/{filepath}")
-        # 3. Include code content in full_report for better analysis
-        # See plan_research() function above for implementation details
+        # Deep Radio Mode: Tool-calling style code analysis
+        code_content = ""
         if deep_mode:
-            ingest_logger.info("Deep mode requested but not yet implemented")
-            print("⚠️ Deep mode toggle detected - feature coming soon!")
+            print("🔍 Agent: Deep mode enabled - analyzing code files...")
+            ingest_logger.info("Deep mode activated - using plan_research to identify key files")
+            
+            # Use AI to identify priority files (like tool calling for code agents)
+            priority_files = plan_research(tree_res.result, provider)
+            
+            if priority_files and isinstance(priority_files, list):
+                ingest_logger.info(f"Plan identified {len(priority_files)} priority files: {priority_files}")
+                print(f"🎯 Agent: Reading {len(priority_files)} key files...")
+                
+                code_sections = []
+                for filepath in priority_files:
+                    # Read each priority file
+                    file_res = sandbox.process.exec(f"cat {repo_name}/{filepath}")
+                    
+                    if file_res.exit_code == 0 and file_res.result:
+                        file_size = len(file_res.result)
+                        ingest_logger.debug(f"Read {filepath}: {file_size} chars")
+                        print(f"   📄 {filepath} ({file_size} chars)")
+                        
+                        # Limit each file to prevent context overflow (max 2000 chars per file)
+                        content = file_res.result[:2000] if len(file_res.result) > 2000 else file_res.result
+                        code_sections.append(f"\n=== FILE: {filepath} ===\n{content}")
+                    else:
+                        ingest_logger.warning(f"Failed to read {filepath}: {file_res.result}")
+                        print(f"   ⚠️ Could not read {filepath}")
+                
+                if code_sections:
+                    code_content = "\n\nDEEP DIVE CODE:\n" + "\n".join(code_sections)
+                    ingest_logger.info(f"Deep mode collected {len(code_content)} chars of code content")
+            else:
+                ingest_logger.warning("Plan research returned no files or invalid format")
+                print("⚠️ Agent: Could not identify priority files for deep analysis")
         
         # Cleanup (Kill the sandbox to save resources)
         print("💥 Agent: Job done. Destroying sandbox.")
@@ -90,7 +118,7 @@ def get_repo_content(repo_url, deep_mode=False, provider="Local (Ollama)"):
             ingest_logger.warning(f"Cleanup failed for sandbox {sandbox.id}")
             print("⚠️ Cleanup failed. You may need to manually delete this sandbox later.")
         
-        full_report = f"README CONTENT:\n{read_res.result}\n\nFILE STRUCTURE:\n{tree_res.result}"
+        full_report = f"README CONTENT:\n{read_res.result}\n\nFILE STRUCTURE:\n{tree_res.result}{code_content}"
         ingest_logger.info(f"Repo analysis complete: {len(full_report)} chars total")
         return full_report
 
