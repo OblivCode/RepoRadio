@@ -46,6 +46,20 @@ num_hosts = st.radio("Number of Hosts:", [1, 2, 3], index=1, horizontal=True)
 hosts = []
 character_names = list(characters_data.keys())
 
+# Sort characters to put positive personalities first (for better defaults)
+def get_positivity_score(name):
+    """Rank characters by positivity (higher = more positive)."""
+    desc = characters_data[name].get("description", "").lower()
+    if "hype" in desc or "enthusiastic" in desc: return 5
+    if "optimistic" in desc or "junior" in desc and "awesome" in desc: return 4
+    if "pragmatic" in desc or "devops" in desc: return 3
+    if "purist" in desc: return 2
+    if "cynical" in desc or "tired" in desc: return 1
+    if "paranoid" in desc or "security" in desc: return 0
+    return 3  # neutral default
+
+character_names = sorted(character_names, key=get_positivity_score, reverse=True)
+
 # Create emoji mapping for personality types
 personality_emojis = {
     "hype": "🚀",
@@ -61,6 +75,7 @@ def get_character_emoji(description):
     """Get emoji based on character personality."""
     desc_lower = description.lower()
     if "hype" in desc_lower: return "🚀"
+    if "enthusiast" in desc_lower and "tech" in desc_lower: return "✨"
     if "cynical" in desc_lower or "tired" in desc_lower: return "😒"
     if "paranoid" in desc_lower or "security" in desc_lower: return "🔒"
     if "pragmatic" in desc_lower or "pm" in desc_lower: return "📊"
