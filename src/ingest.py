@@ -70,6 +70,16 @@ def get_repo_content(repo_url, deep_mode=False, provider="Local (Ollama)"):
         tree_res = sandbox.process.exec(f"find {repo_name} -maxdepth 2 -not -path '*/.*'")
         ingest_logger.debug(f"File tree size: {len(tree_res.result)} chars")
         
+        # TODO: Implement deep mode
+        # When deep_mode=True:
+        # 1. Call plan_research(tree_res.result, provider) to get priority files
+        # 2. Read those files from sandbox with: sandbox.process.exec(f"cat {repo_name}/{filepath}")
+        # 3. Include code content in full_report for better analysis
+        # See plan_research() function above for implementation details
+        if deep_mode:
+            ingest_logger.info("Deep mode requested but not yet implemented")
+            print("⚠️ Deep mode toggle detected - feature coming soon!")
+        
         # Cleanup (Kill the sandbox to save resources)
         print("💥 Agent: Job done. Destroying sandbox.")
         try:
