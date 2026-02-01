@@ -20,9 +20,11 @@ Instructions:
 - Do NOT just say "this code is good/bad". Explain *WHY*.
 - Explain technical concepts found in the "Repo Analysis".
 - If "DEEP DIVE CODE" is present, quote specific lines.
-- Format the output as a JSON list of objects.
+- Generate 8-12 lines of dialogue for a 3-minute episode.
 
-Format: Return ONLY a valid JSON list: [{"speaker": "HostName", "text": "..."}]
+CRITICAL: Return ONLY a JSON array (list) of objects. Each object must have "speaker" and "text" keys.
+Example format: [{"speaker": "Alex", "text": "Welcome to RepoRadio!"}, {"speaker": "Casey", "text": "Today we're excited..."}]
+Do NOT wrap in any other object. Start with [ and end with ].
 """
 
 # ... (Planner Prompt stays the same) ...
@@ -31,7 +33,10 @@ You are a Senior Architect analyzing a file tree.
 Identify up to 3 files that are most critical to understanding how this project works.
 - Look for entry points (main.rs, index.ts), core logic, or funny config files.
 - Ignore documentation, licenses, and lockfiles.
-Format: Return ONLY a JSON list of strings. Example: ["src/main.rs", "config.toml"]
+
+CRITICAL: Return ONLY a JSON array (list) of filename strings.
+Example: ["src/main.py", "config.yaml", "README.md"]
+Do NOT wrap in an object. Start with [ and end with ].
 """
 
 def get_host_ip():
@@ -80,18 +85,28 @@ def plan_research(file_tree, provider="Local (Ollama)"):
             if isinstance(parsed, list):
                 file_list = parsed
             elif isinstance(parsed, dict):
+                brain_logger.debug(f"Plan research got dict with keys: {list(parsed.keys())}")
+                brain_logger.debug(f"Full dict: {parsed}")
+                
                 # Try common wrapper keys
-                for key in ["files", "list", "priority_files", "important_files", "paths"]:
-                    if key in parsed and isinstance(parsed[key], list):
-                        file_list = parsed[key]
-                        brain_logger.debug(f"Extracted file list from '{key}' wrapper")
-                        break
+                for key in ["files", "list", "priority_files", "important_files", "paths", "result"]:
+                    if key in parsed:
+                        value = parsed[key]
+                        if isinstance(value, list):
+                            file_list = value
+                            brain_logger.debug(f"Extracted file list from '{key}' wrapper")
+                            break
+                        elif isinstance(value, str):
+                            # Sometimes returns comma-separated string
+                            file_list = [f.strip() for f in value.split(',')]
+                            brain_logger.debug(f"Split string from '{key}' into list")
+                            break
             
-            if file_list:
+            if file_list and len(file_list) > 0:
                 brain_logger.info(f"Plan research identified {len(file_list)} files: {file_list}")
                 return file_list
             else:
-                brain_logger.warning(f"Plan research returned unexpected format: {type(parsed)}")
+                brain_logger.warning(f"Plan research returned unexpected format: {type(parsed)}, value: {parsed}")
                 return []
                 
         except (requests.exceptions.RequestException, json.JSONDecodeError, KeyError) as e:
@@ -172,21 +187,26 @@ def generate_script(repo_content, host_names, provider="Local (Ollama)"):
                 if isinstance(parsed, list):
                     script_data = parsed
                 elif isinstance(parsed, dict):
-                    # Try common wrapper keys
-                    for key in ["script", "podcast", "lines", "dialogue", "conversation"]:
-                        if key in parsed and isinstance(parsed[key], list):
-                            script_data = parsed[key]
-                            brain_logger.debug(f"Extracted script from '{key}' wrapper")
-                            break
-                    
-                    # If still no script found, log it
-                    if script_data is None:
-                        brain_logger.warning(f"Response is dict but no recognized script key. Keys: {list(parsed.keys())}")
-                        brain_logger.debug(f"Full parsed response: {parsed}")
-                        continue
+                    # Check if it's a single script line (has speaker and text keys)
+                    if "speaker" in parsed and "text" in parsed:
+                        brain_logger.debug("Received single script line, wrapping in list")
+                        script_data = [parsed]  # Wrap single line in array
+                    else:
+                        # Try common wrapper keys
+                        for key in ["script", "podcast", "lines", "dialogue", "conversation"]:
+                            if key in parsed and isinstance(parsed[key], list):
+                                script_data = parsed[key]
+                                brain_logger.debug(f"Extracted script from '{key}' wrapper")
+                                break
+                        
+                        # If still no script found, log it
+                        if script_data is None:
+                            brain_logger.warning(f"Response is dict but no recognized script key. Keys: {list(parsed.keys())}")
+                            brain_logger.debug(f"Full parsed response: {parsed}")
+                            continue
                 
                 if script_data and len(script_data) > 0:
-                    brain_logger.info(f"✅ Successfully generated script with {model}")
+                    brain_logger.info(f"✅ Successfully generated script with {model} ({len(script_data)} lines)")
                     return script_data
                 else:
                     brain_logger.warning(f"Unexpected response format from {model}: {type(parsed)}")
