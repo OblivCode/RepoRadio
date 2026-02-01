@@ -98,7 +98,7 @@ def plan_research(file_tree, provider="Local (Ollama)"):
                 brain_logger.debug(f"Plan research got dict with keys: {list(parsed.keys())}")
                 brain_logger.debug(f"Full dict: {parsed}")
                 
-                # Try common wrapper keys
+                # Try common wrapper keys first
                 for key in ["files", "list", "priority_files", "important_files", "paths", "result"]:
                     if key in parsed:
                         value = parsed[key]
@@ -111,10 +111,26 @@ def plan_research(file_tree, provider="Local (Ollama)"):
                             file_list = [f.strip() for f in value.split(',')]
                             brain_logger.debug(f"Split string from '{key}' into list")
                             break
+                
+                # If no wrapper found, treat dict keys as file paths (LLM explaining each file)
+                if file_list is None:
+                    # Extract keys where value indicates file exists
+                    file_list = []
+                    for filepath, status in parsed.items():
+                        status_lower = str(status).lower()
+                        # Include if status indicates file exists/is valid
+                        if any(word in status_lower for word in ["found", "exists", "critical", "entry", "main"]):
+                            file_list.append(filepath)
+                            brain_logger.debug(f"Extracted '{filepath}' from dict (status: {status})")
+                        elif "no such" in status_lower or "not found" in status_lower:
+                            brain_logger.debug(f"Skipped '{filepath}' (status: {status})")
+                    
+                    if file_list:
+                        brain_logger.info(f"Extracted {len(file_list)} files from explanatory dict")
             
             if file_list and len(file_list) > 0:
                 brain_logger.info(f"Plan research identified {len(file_list)} files: {file_list}")
-                return file_list
+                return file_list[:3]  # Limit to 3 files max
             else:
                 brain_logger.warning(f"Plan research returned unexpected format: {type(parsed)}, value: {parsed}")
                 return []
