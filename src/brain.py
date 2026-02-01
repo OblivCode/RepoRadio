@@ -54,15 +54,36 @@ def load_character(char_name):
         return {"name": char_name, "description": "A standard radio host."}
 
 def plan_research(file_tree, provider="Local (Ollama)"):
+    """Use AI to identify 3 most important files from file tree."""
     host_ip = get_host_ip()
     if "Local" in provider:
         url_base = f"http://{host_ip}:11434/api/generate"
         try:
             prompt = f"{PLANNER_PROMPT}\n\nFile Structure:\n{file_tree}\n\nRespond with ONLY valid JSON."
             payload = {"model": "llama3.1:8b", "prompt": prompt, "stream": False, "format": "json"}
-            res = requests.post(url_base, json=payload, timeout=15)
-            return json.loads(res.json()["response"])
-        except (requests.exceptions.RequestException, json.JSONDecodeError, KeyError):
+            brain_logger.debug(f"Plan research request to {url_base}")
+            res = requests.post(url_base, json=payload, timeout=20)
+            res.raise_for_status()
+            
+            response_data = res.json()
+            response_text = response_data.get("response", "").strip()
+            
+            if not response_text:
+                brain_logger.warning("Plan research got empty response")
+                return []
+            
+            brain_logger.debug(f"Plan research raw response: {response_text[:200]}")
+            parsed = json.loads(response_text)
+            
+            if isinstance(parsed, list):
+                brain_logger.info(f"Plan research identified {len(parsed)} files: {parsed}")
+                return parsed
+            else:
+                brain_logger.warning(f"Plan research returned non-list: {type(parsed)}")
+                return []
+                
+        except (requests.exceptions.RequestException, json.JSONDecodeError, KeyError) as e:
+            brain_logger.error(f"Plan research failed: {str(e)}")
             return []
     else:
         return []
@@ -99,11 +120,12 @@ def generate_script(repo_content, host_names, provider="Local (Ollama)"):
         
         for attempt, model in enumerate(models_to_try, 1):
             try:
-                # Truncate content for reliability
-                content_preview = repo_content[:1000] if len(repo_content) > 1000 else repo_content
+                # Truncate content for reliability (allow more with deep mode)
+                max_chars = 3000 if "DEEP DIVE CODE" in repo_content else 2000
+                content_preview = repo_content[:max_chars] if len(repo_content) > max_chars else repo_content
                 prompt = f"{system_prompt}\n\nRepo Analysis:\n{content_preview}\n\nRespond with ONLY valid JSON."
                 
-                payload = {"model": model, "prompt": prompt, "stream": False}
+                payload = {"model": model, "prompt": prompt, "stream": False, "format": "json"}
                 
                 brain_logger.debug(f"Attempt {attempt}/{len(models_to_try)}: Trying model {model}")
                 log_ollama_request(model, prompt, url_base)
