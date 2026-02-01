@@ -171,7 +171,8 @@ if st.button("GENERATE VIBE"):
         log_app_event("Stage 2: Generating script", f"Hosts: {', '.join(hosts)}, Provider: {provider}")
         script = generate_script(content, hosts, provider)
         log_script_generation(hosts, len(str(script)))
-        st.json(script)
+        with st.expander("📝 Script (click to expand)", expanded=False):
+            st.json(script)
         
         # 3. Voice
         status.info(f"🔊 Synthesizing audio...")
