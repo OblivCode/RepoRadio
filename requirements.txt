@@ -1,11 +1,22 @@
-streamlit
-daytona-sdk
-openai
-requests
-pydub
-soundfile
-kokoro-onnx
-elevenlabs
-ffmpeg-python
-python-dotenv
-watchdog
+# Core dependencies with pinned versions
+streamlit==1.31.1
+daytona-sdk==0.8.0
+openai==1.12.0
+requests==2.31.0
+
+# Audio processing
+pydub==0.25.1
+soundfile==0.12.1
+kokoro-onnx==0.5.0
+elevenlabs==0.2.26
+
+# Utilities
+python-dotenv==1.0.1
+
+# System dependencies (install separately):
+# - ffmpeg (required by pydub)
+# - libsndfile1 (required by soundfile)
+#
+# Linux: sudo apt-get install ffmpeg libsndfile1
+# macOS: brew install ffmpeg libsndfile
+# Windows: Download ffmpeg from https://ffmpeg.org/download.html
