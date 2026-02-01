@@ -117,10 +117,10 @@ def plan_research(file_tree, provider="Local (Ollama)"):
                     # Extract keys where value indicates file exists
                     file_list = []
                     for filepath, status in parsed.items():
-                        # Handle None values - treat as valid file path
-                        if status is None:
+                        # Handle None or empty string - treat as valid file path
+                        if status is None or status == "":
                             file_list.append(filepath)
-                            brain_logger.debug(f"Extracted '{filepath}' from dict (status: None)")
+                            brain_logger.debug(f"Extracted '{filepath}' from dict (status: {repr(status)})")
                             continue
                         
                         status_lower = str(status).lower()
