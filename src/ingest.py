@@ -3,14 +3,35 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
+import re
 from daytona_sdk import Daytona
 from debug_logger import ingest_logger, log_daytona_sandbox, log_daytona_error, log_git_clone
+
+def validate_github_url(url):
+    """Validate and sanitize GitHub URL to prevent command injection."""
+    # Basic GitHub URL pattern
+    pattern = r'^https?://github\.com/[\w\-\.]+/[\w\-\.]+/?$'
+    if not re.match(pattern, url.rstrip('.git')):
+        raise ValueError(f"Invalid GitHub URL format: {url}")
+    # Additional safety: ensure no shell metacharacters
+    dangerous_chars = ['&', '|', ';', '$', '`', '\n', '(', ')']
+    if any(char in url for char in dangerous_chars):
+        raise ValueError(f"URL contains potentially dangerous characters: {url}")
+    return url.strip()
 
 # This runs INSIDE your main Daytona workspace.
 # It uses the SDK to spawn ephemeral "Agent" sandboxes to read other repos.
 def get_repo_content(repo_url, deep_mode=False, provider="Local (Ollama)"):
     print(f"🕵️  Agent: Analyzing {repo_url}...")
     ingest_logger.info(f"Starting repo analysis: {repo_url}")
+    
+    # Validate URL before using it
+    try:
+        repo_url = validate_github_url(repo_url)
+    except ValueError as e:
+        error_msg = f"URL validation failed: {str(e)}"
+        ingest_logger.error(error_msg)
+        return error_msg
     
     # Initialize SDK
     daytona = Daytona()
