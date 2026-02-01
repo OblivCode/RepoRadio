@@ -160,16 +160,29 @@ def generate_script(repo_content, host_names, provider="Local (Ollama)"):
                 # Truncate content for reliability (allow more with deep mode)
                 max_chars = 3000 if "DEEP DIVE CODE" in repo_content else 2000
                 content_preview = repo_content[:max_chars] if len(repo_content) > max_chars else repo_content
-                prompt = f"{system_prompt}\n\nRepo Analysis:\n{content_preview}\n\nRespond with ONLY valid JSON."
+                
+                # Build a more forceful prompt with repeat instructions
+                full_prompt = f"""{system_prompt}
+
+Repo Analysis:
+{content_preview}
+
+REMEMBER: You MUST generate a complete podcast with 8-12 conversation turns.
+REMEMBER: Return a JSON array starting with [ and ending with ].
+REMEMBER: Each turn needs speaker and text keys.
+
+Generate the full 8-12 line podcast script now:"""
                 
                 payload = {
-                    "model": model, 
-                    "prompt": prompt, 
-                    "stream": False, 
+                    "model": model,
+                    "prompt": full_prompt,
+                    "stream": False,
                     "format": "json",
                     "options": {
-                        "num_predict": 2000,  # Allow longer responses
-                        "temperature": 0.7    # Slight creativity for variety
+                        "num_predict": 3000,  # Increase even more
+                        "temperature": 0.8,   # More variety
+                        "top_p": 0.9,
+                        "repeat_penalty": 1.1  # Discourage stopping early
                     }
                 }
                 
