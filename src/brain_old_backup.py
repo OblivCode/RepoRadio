@@ -3,7 +3,6 @@ import json
 import requests
 import subprocess
 import time
-import random
 from openai import OpenAI
 from debug_logger import brain_logger, log_ollama_request, log_ollama_response, log_ollama_error, log_character_load
 
@@ -220,7 +219,7 @@ Repo Analysis:
 Previous dialogue:
 {prev_lines if prev_lines else "(This is the opening line)"}
 
-Generate the next line of dialogue. Return ONLY JSON: {{"speaker": "Name", "text": "..."}}"""
+Generate the next line of dialogue. Return ONLY JSON: {{\"speaker\": \"Name\", \"text\": \"...\"}}"""
             
             try:
                 payload = {
@@ -268,7 +267,7 @@ Generate the next line of dialogue. Return ONLY JSON: {{"speaker": "Name", "text
             line = generate_one_line(script, context_note="Build excitement and introduce the project.")
             if line:
                 script.append(line)
-                print(f"   🎙️ {line['speaker']}: {line['text'][:60]}...")
+                print(f"   \ud83c\udf99\ufe0f {line['speaker']}: {line['text'][:60]}...")
             else:
                 brain_logger.warning(f"Failed to generate pre-break line {i+1}")
         
@@ -279,7 +278,7 @@ Generate the next line of dialogue. Return ONLY JSON: {{"speaker": "Name", "text
             ad_line = generate_fake_ad(dependencies, host_names)
             if ad_line:
                 script.append(ad_line)
-                print(f"   📢 {ad_line['speaker']}: {ad_line['text'][:60]}...")
+                print(f"   \ud83d\udce2 {ad_line['speaker']}: {ad_line['text'][:60]}...")
         
         # PART 3: Post-break conversation
         brain_logger.info(f"Generating post-break conversation ({POST_BREAK_LINES} lines)")
@@ -287,18 +286,237 @@ Generate the next line of dialogue. Return ONLY JSON: {{"speaker": "Name", "text
             line = generate_one_line(script, context_note="Dive deeper into technical details and wrap up.")
             if line:
                 script.append(line)
-                print(f"   🎙️ {line['speaker']}: {line['text'][:60]}...")
+                print(f"   \ud83c\udf99\ufe0f {line['speaker']}: {line['text'][:60]}...")
             else:
                 brain_logger.warning(f"Failed to generate post-break line {i+1}")
         
         if not script:
-            brain_logger.error("❌ All one-line generations failed")
+            brain_logger.error("\u274c All one-line generations failed")
             return [{"speaker": "System", "text": f"Script generation failed. Check Ollama at {url_base}"}]
         
-        brain_logger.info(f"✅ Successfully generated {len(script)} line script")
+        brain_logger.info(f"\u2705 Successfully generated {len(script)} line script")
         return script
-    
+            """Return a list of {speaker,text} dicts or None."""
+            script_list = None
+            if isinstance(parsed_json, list):
+                script_list = parsed_json
+            elif isinstance(parsed_json, dict):
+                # Check if it's a single script line (has speaker and text keys)
+                if "speaker" in parsed_json and "text" in parsed_json:
+                    brain_logger.debug("Received single script line, wrapping in list")
+                    script_list = [parsed_json]
+                else:
+                    # Try common wrapper keys
+                    for key in ["script", "podcast", "lines", "dialogue", "conversation"]:
+                        if key in parsed_json and isinstance(parsed_json[key], list):
+                            script_list = parsed_json[key]
+                            brain_logger.debug(f"Extracted script from '{key}' wrapper")
+                            break
+            if not script_list:
+                return None
+
+            normalized = []
+            for item in script_list:
+                if not isinstance(item, dict):
+                    continue
+                speaker = item.get("speaker")
+                text = item.get("text")
+                if isinstance(speaker, str) and isinstance(text, str) and speaker.strip() and text.strip():
+                    normalized.append({"speaker": speaker.strip(), "text": text.strip()})
+            return normalized if normalized else None
+
+        def _dedupe_keep_order(lines):
+            seen = set()
+            out = []
+            for line in lines:
+                key = (line.get("speaker"), line.get("text"))
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(line)
+            return out
+        
+        for attempt, model in enumerate(models_to_try, 1):
+            try:
+                # Truncate content for reliability (allow more with deep mode)
+                max_chars = 3000 if "DEEP DIVE CODE" in repo_content else 2000
+                content_preview = repo_content[:max_chars] if len(repo_content) > max_chars else repo_content
+                
+                # Build a more forceful prompt with repeat instructions
+                full_prompt = f"""{system_prompt}
+
+Repo Analysis:
+{content_preview}
+
+REMEMBER: You MUST generate a complete podcast with 8-12 conversation turns.
+REMEMBER: Return a JSON array starting with [ and ending with ].
+REMEMBER: Each turn needs speaker and text keys.
+
+OUTPUT REQUIREMENTS (strict):
+- Output MUST be a JSON array with between {MIN_TURNS} and {MAX_TURNS} items.
+- Each item MUST be an object with exactly: speaker (string), text (string).
+- Do NOT include any other keys.
+- Do NOT wrap inside {{"script": ...}} or any wrapper.
+
+Example format:
+[
+  {{"speaker": "Alex", "text": "..."}},
+  {{"speaker": "Casey", "text": "..."}}
+]
+
+Generate the full 8-12 line podcast script now:"""
+
+                def _ollama_generate(prompt_text, round_label, use_json_mode=True):
+                    payload = {
+                        "model": model,
+                        "prompt": prompt_text,
+                        "stream": False,
+                        "options": {
+                            "num_predict": 3000,
+                            "temperature": 0.8,
+                            "top_p": 0.9,
+                            "repeat_penalty": 1.1,
+                        },
+                    }
+                    if use_json_mode:
+                        payload["format"] = "json"
+                    brain_logger.debug(
+                        f"Attempt {attempt}/{len(models_to_try)}: model={model} round={round_label}"
+                    )
+                    log_ollama_request(model, prompt_text, url_base)
+                    start_time = time.time()
+                    response = requests.post(url_base, json=payload, timeout=60)
+                    response.raise_for_status()
+                    data = response.json()
+                    response_text = data.get("response", "").strip()
+                    duration_ms = (time.time() - start_time) * 1000
+                    if not response_text:
+                        brain_logger.warning(f"Empty response from {model} at {url_base}")
+                        brain_logger.debug(f"Full response object: {data}")
+                        return None
+                    log_ollama_response(response_text, duration_ms)
+
+                    parsed = None
+                    try:
+                        parsed = json.loads(response_text)
+                    except json.JSONDecodeError:
+                        if not use_json_mode:
+                            # Best-effort: extract JSON array/object from mixed text
+                            start_candidates = [response_text.find("["), response_text.find("{")]
+                            start_candidates = [i for i in start_candidates if i != -1]
+                            if start_candidates:
+                                start_idx = min(start_candidates)
+                                end_idx = max(response_text.rfind("]"), response_text.rfind("}"))
+                                if end_idx != -1 and end_idx > start_idx:
+                                    candidate = response_text[start_idx : end_idx + 1]
+                                    try:
+                                        parsed = json.loads(candidate)
+                                    except json.JSONDecodeError as e:
+                                        brain_logger.warning(
+                                            f"JSON parse error from {model} (substring): {str(e)}"
+                                        )
+                                        brain_logger.debug(f"Candidate: {candidate[:200]}")
+                                        return None
+                        if parsed is None:
+                            brain_logger.warning(f"JSON parse error from {model} in round={round_label}")
+                            brain_logger.debug(f"Response text: {response_text[:200]}")
+                            return None
+                    return _extract_script_list(parsed)
+
+                all_lines = []
+                first = _ollama_generate(full_prompt, "initial")
+                if first:
+                    all_lines.extend(first)
+                    all_lines = _dedupe_keep_order(all_lines)
+
+                # If the model stops early (common in JSON mode), ask it to continue.
+                continuation_round = 0
+                while len(all_lines) < MIN_TURNS and continuation_round < MAX_CONTINUATION_ROUNDS:
+                    continuation_round += 1
+                    brain_logger.info(
+                        f"Script too short ({len(all_lines)}/{MIN_TURNS}); requesting continuation {continuation_round}/{MAX_CONTINUATION_ROUNDS}"
+                    )
+                    remaining_min = max(MIN_TURNS - len(all_lines), 1)
+                    remaining_max = max(min(MAX_TURNS - len(all_lines), 6), remaining_min)
+
+                    continue_prompt = f"""{system_prompt}
+
+Repo Analysis:
+{content_preview}
+
+You already produced this partial script (JSON):
+{json.dumps(all_lines, ensure_ascii=False)}
+
+Continue the podcast.
+STRICT OUTPUT: Return ONLY a JSON array of ADDITIONAL turns (no wrapper keys), do not repeat any existing turn.
+Add {remaining_min} to {remaining_max} more turns so total becomes between {MIN_TURNS} and {MAX_TURNS} turns.
+"""
+
+                    more = _ollama_generate(continue_prompt, f"continue-{continuation_round}")
+                    if not more:
+                        brain_logger.warning(
+                            f"Continuation round {continuation_round} produced no parsable turns"
+                        )
+                        continue
+                    all_lines.extend(more)
+                    all_lines = _dedupe_keep_order(all_lines)
+
+                # Fallback: try once without Ollama JSON mode (it sometimes truncates early).
+                if 0 < len(all_lines) < MIN_TURNS:
+                    brain_logger.info(
+                        "Still short after continuations; retrying once without JSON mode"
+                    )
+                    remaining_min = max(MIN_TURNS - len(all_lines), 1)
+                    remaining_max = max(min(MAX_TURNS - len(all_lines), 8), remaining_min)
+                    fallback_prompt = f"""{system_prompt}
+
+Repo Analysis:
+{content_preview}
+
+You already produced this partial script (JSON):
+{json.dumps(all_lines, ensure_ascii=False)}
+
+Continue the podcast.
+Return ONLY a JSON array of ADDITIONAL turns (no wrapper keys), do not repeat any existing turn.
+Add {remaining_min} to {remaining_max} more turns so total becomes between {MIN_TURNS} and {MAX_TURNS} turns.
+"""
+                    more = _ollama_generate(fallback_prompt, "fallback-nonjson", use_json_mode=False)
+                    if more:
+                        all_lines.extend(more)
+                        all_lines = _dedupe_keep_order(all_lines)
+
+                if all_lines:
+                    final_lines = all_lines[:MAX_TURNS]
+                    if len(final_lines) < MIN_TURNS:
+                        brain_logger.warning(
+                            f"Generated only {len(final_lines)} turns (<{MIN_TURNS}) after continuations"
+                        )
+                    brain_logger.info(
+                        f"✅ Successfully generated script with {model} ({len(final_lines)} lines)"
+                    )
+                    return final_lines
+
+                brain_logger.warning(
+                    f"Unexpected or empty response format from {model} (no turns extracted)"
+                )
+                continue  # Try next model
+                    
+            except requests.exceptions.Timeout:
+                brain_logger.warning(f"Timeout on {model} (attempt {attempt}/{len(models_to_try)})")
+                log_ollama_error(f"Request timeout on {model}", url_base)
+                continue
+            except requests.exceptions.ConnectionError as e:
+                brain_logger.error(f"Connection error with {model}: {str(e)}")
+                log_ollama_error(f"Connection error: {str(e)}", url_base)
+                continue
+            except Exception as e:
+                brain_logger.error(f"Unexpected error with {model}: {str(e)}")
+                log_ollama_error(f"Unexpected error: {str(e)}", url_base)
+                continue
+        
+        # All models failed
+        brain_logger.error(f"❌ All models failed after {len(models_to_try)} attempts")
+        return [{"speaker": "System", "text": f"All AI models failed. Check Ollama is running at {url_base}"}]
     else:
-        # Cloud logic (OpenAI/other providers)
-        brain_logger.warning("Cloud providers not yet updated for new one-line approach")
-        return [{"speaker": "System", "text": "Cloud provider script generation not implemented yet."}]
+        # Cloud logic (same as before)
+        pass

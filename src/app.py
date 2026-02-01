@@ -163,11 +163,11 @@ with st.expander("⚙️ Settings"):
     # Production Studio Features
     st.markdown("### 🎬 Production Studio")
     c3, c4 = st.columns(2)
-    enable_music = c3.checkbox("🎵 Background Music", value=False, help="Overlay lo-fi beats during dialogue")
-    enable_jingles = c4.checkbox("🎺 Intro/Outro Jingles", value=False, help="Add podcast intro and outro")
+    enable_music = c3.checkbox("🎵 Background Music", value=True, help="Overlay lo-fi beats during dialogue")
+    enable_jingles = c4.checkbox("🎺 Intro/Outro Jingles", value=True, help="Add podcast intro and outro")
     
     c5, c6 = st.columns(2)
-    enable_ads = c5.checkbox("📢 Sponsor Breaks", value=False, help="Insert humorous fake ads based on dependencies")
+    enable_ads = c5.checkbox("📢 Sponsor Breaks", value=True, help="Insert humorous fake ads based on dependencies")
     enable_crossfade = c6.checkbox("🎚️ Crossfade Transitions", value=True, help="Smooth audio transitions between speakers")
 
 # --- 3. GENERATE BUTTON ---
@@ -184,22 +184,20 @@ if st.button("GENERATE VIBE"):
         content = get_repo_content(repo_url, deep_mode=deep_mode, provider=provider)
         st.session_state.generated_content = content
         
-        # 2. Brain
+        # 2. Brain - Generate script with ad break structure
         status.info(f"🎙️ Writing script for {', '.join(hosts)}...")
         log_app_event("Stage 2: Generating script", f"Hosts: {', '.join(hosts)}, Provider: {provider}")
-        script = generate_script(content, hosts, provider)
-        log_script_generation(hosts, len(str(script)))
         
-        # 2.5. Inject sponsor ad if enabled
+        # Extract dependencies for ads
+        dependencies_content = ""
         if enable_ads and "DEPENDENCIES" in content:
-            status.info("📢 Generating sponsor break...")
-            app_logger.info("Injecting fake sponsor ad")
-            # Extract dependencies section from content
             deps_start = content.find("DEPENDENCIES")
             deps_end = content.find("\n\n", deps_start + 100) if deps_start != -1 else -1
             dependencies_content = content[deps_start:deps_end] if deps_start != -1 else ""
-            if dependencies_content:  # Only inject if we have dependencies
-                script = inject_ad_break(script, dependencies_content, hosts)
+        
+        # Generate script with integrated ad break structure
+        script = generate_script(content, hosts, provider, include_ad_break=enable_ads, dependencies=dependencies_content)
+        log_script_generation(hosts, len(str(script)))
         
         st.session_state.generated_script = script
         
