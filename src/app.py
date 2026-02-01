@@ -9,6 +9,28 @@ from voice import render_audio
 from debug_logger import app_logger, log_app_event, log_script_generation 
 
 st.set_page_config(page_title="RepoRadio", page_icon="📻", layout="wide")
+
+# Custom CSS to center the loading spinner
+st.markdown("""
+<style>
+    /* Center the Streamlit loading spinner */
+    .stSpinner > div {
+        text-align: center;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    
+    /* Also center any loading elements */
+    div[data-testid="stStatusWidget"] {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+    }
+</style>
+""", unsafe_allow_html=True)
+
 st.title("📻 RepoRadio")
 
 # --- 1. LOAD CHARACTER DATA ---
@@ -89,11 +111,27 @@ for i in range(num_hosts):
     with cols[i]:
         st.markdown(f"### Host {i+1}")
         
+        # Determine default index based on num_hosts and position
+        # For 1 host: Alex (index 0)
+        # For 2 hosts: Alex (0), Casey (1)
+        # For 3 hosts: Alex (0), Casey (1), Morgan (2)
+        default_names = {
+            1: ["Alex"],
+            2: ["Alex", "Casey"],
+            3: ["Alex", "Casey", "Morgan"]
+        }
+        
+        if num_hosts in default_names and i < len(default_names[num_hosts]):
+            default_name = default_names[num_hosts][i]
+            default_idx = character_names.index(default_name) if default_name in character_names else min(i, len(character_names) - 1)
+        else:
+            default_idx = min(i, len(character_names) - 1)
+        
         # Radio buttons for character selection with descriptions
         selected = st.radio(
             f"Choose Host {i+1}:",
             options=character_names,
-            index=min(i, len(character_names) - 1),
+            index=default_idx,
             key=f"host_{i}",
             label_visibility="collapsed"
         )
