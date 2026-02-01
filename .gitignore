@@ -28,6 +28,15 @@ logs/
 
 # Temporary files
 temp_*.wav
+*_backup.py
+*.pyc
+
+# Generated audio
+final_episode.mp3
+
+# Model files 
+ kokoro-v1.0.onnx
+ voices-v1.0.bin
 *.mp3
 final_episode.mp3
 
