@@ -10,27 +10,6 @@ from debug_logger import app_logger, log_app_event, log_script_generation
 
 st.set_page_config(page_title="RepoRadio", page_icon="📻", layout="wide")
 
-# Custom CSS to center the loading spinner
-st.markdown("""
-<style>
-    /* Center the Streamlit loading spinner */
-    .stSpinner > div {
-        text-align: center;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
-    
-    /* Also center any loading elements */
-    div[data-testid="stStatusWidget"] {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-    }
-</style>
-""", unsafe_allow_html=True)
-
 st.title("📻 RepoRadio")
 
 # --- 1. LOAD CHARACTER DATA ---

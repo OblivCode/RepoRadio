@@ -117,6 +117,12 @@ def plan_research(file_tree, provider="Local (Ollama)"):
                     # Extract keys where value indicates file exists
                     file_list = []
                     for filepath, status in parsed.items():
+                        # Handle None values - treat as valid file path
+                        if status is None:
+                            file_list.append(filepath)
+                            brain_logger.debug(f"Extracted '{filepath}' from dict (status: None)")
+                            continue
+                        
                         status_lower = str(status).lower()
                         # Include if status indicates file exists/is valid
                         if any(word in status_lower for word in ["found", "exists", "critical", "entry", "main"]):
@@ -203,7 +209,7 @@ Generate the full 8-12 line podcast script now:"""
                 }
                 
                 brain_logger.debug(f"Attempt {attempt}/{len(models_to_try)}: Trying model {model}")
-                log_ollama_request(model, prompt, url_base)
+                log_ollama_request(model, full_prompt, url_base)
                 
                 start_time = time.time()
                 response = requests.post(url_base, json=payload, timeout=60)
