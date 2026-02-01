@@ -15,16 +15,26 @@ The Hosts are:
 HOST_DEFINITIONS
 
 Instructions:
+- Generate EXACTLY 8-12 lines of dialogue (conversation turns).
 - If multiple hosts are present, they should banter and bounce ideas off each other.
-- If only one host is present, they should deliver an engaging monologue/deep-dive.
+- Each host should speak multiple times, alternating naturally.
+- If only one host is present, break their monologue into 8-12 segments.
 - Do NOT just say "this code is good/bad". Explain *WHY*.
 - Explain technical concepts found in the "Repo Analysis".
 - If "DEEP DIVE CODE" is present, quote specific lines.
-- Generate 8-12 lines of dialogue for a 3-minute episode.
+- Make it conversational with reactions, questions, and follow-ups.
 
-CRITICAL: Return ONLY a JSON array (list) of objects. Each object must have "speaker" and "text" keys.
-Example format: [{"speaker": "Alex", "text": "Welcome to RepoRadio!"}, {"speaker": "Casey", "text": "Today we're excited..."}]
-Do NOT wrap in any other object. Start with [ and end with ].
+CRITICAL: Return a JSON array with 8-12 objects minimum. Each object has "speaker" and "text".
+Example:
+[
+  {"speaker": "Alex", "text": "Welcome to RepoRadio! Today we're diving into this awesome project."},
+  {"speaker": "Casey", "text": "Oh wow, I'm excited! What does it do?"},
+  {"speaker": "Alex", "text": "It's a development environment manager, and it's fire!"},
+  {"speaker": "Casey", "text": "Cool! How does it work under the hood?"},
+  {"speaker": "Alex", "text": "Great question! Let me break down the architecture..."}
+]
+
+Start with [ and end with ]. Do NOT stop after 1-2 lines. Generate the full conversation.
 """
 
 # ... (Planner Prompt stays the same) ...
@@ -152,7 +162,16 @@ def generate_script(repo_content, host_names, provider="Local (Ollama)"):
                 content_preview = repo_content[:max_chars] if len(repo_content) > max_chars else repo_content
                 prompt = f"{system_prompt}\n\nRepo Analysis:\n{content_preview}\n\nRespond with ONLY valid JSON."
                 
-                payload = {"model": model, "prompt": prompt, "stream": False, "format": "json"}
+                payload = {
+                    "model": model, 
+                    "prompt": prompt, 
+                    "stream": False, 
+                    "format": "json",
+                    "options": {
+                        "num_predict": 2000,  # Allow longer responses
+                        "temperature": 0.7    # Slight creativity for variety
+                    }
+                }
                 
                 brain_logger.debug(f"Attempt {attempt}/{len(models_to_try)}: Trying model {model}")
                 log_ollama_request(model, prompt, url_base)
